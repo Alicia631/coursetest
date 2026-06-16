@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Course de chevaux — Recruter sans discriminer</title>
+<style>
+  * { box-sizing: border-box; }
+  body { margin: 0; padding: 16px; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; color: #2c2c2a; background: #ffffff; }
+  .hr-wrap { max-width: 720px; margin: 0 auto; }
+  .track { background: #f6f5f1; border-radius: 12px; border: 1px solid #e5e3dc; padding: 14px 16px; margin-bottom: 18px; }
+  .lane { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+  .lane:last-child { margin-bottom: 0; }
+  .lane-name { font-size: 12px; width: 66px; flex-shrink: 0; color: #5f5e5a; }
+  .lane-name.me { color: #534ab7; font-weight: 600; }
+  .lane-track { flex: 1; height: 24px; background: #ffffff; border-radius: 99px; border: 1px solid #e5e3dc; position: relative; overflow: hidden; }
+  .finish-line { position: absolute; right: 4px; top: 0; bottom: 0; width: 2px; background: repeating-linear-gradient(0deg, #b4b2a9 0 3px, transparent 3px 6px); }
+  .horse { position: absolute; top: 50%; transform: translateY(-50%); font-size: 17px; transition: left 0.5s ease; line-height: 1; }
+  .question-card { font-size: 16px; font-weight: 600; color: #2c2c2a; margin-bottom: 14px; line-height: 1.5; }
+  .theme-tag { display: inline-block; font-size: 11px; font-weight: 600; padding: 3px 10px; border-radius: 99px; margin-bottom: 12px; background: #eeedfe; color: #3c3489; }
+  .opt-btn { display: block; width: 100%; text-align: left; padding: 11px 14px; margin-bottom: 8px; border-radius: 8px; border: 1px solid #d3d1c7; background: #ffffff; color: #2c2c2a; font-size: 14px; cursor: pointer; transition: background 0.12s; font-family: inherit; }
+  .opt-btn:hover:not(:disabled) { background: #f6f5f1; }
+  .opt-btn:disabled { cursor: default; }
+  .opt-btn.correct { background: #eaf3de; border-color: #639922; color: #27500a; }
+  .opt-btn.wrong { background: #fcebeb; border-color: #a32d2d; color: #501313; }
+  .feedback { display: none; border-radius: 8px; padding: 11px 14px; margin-top: 8px; font-size: 13.5px; line-height: 1.6; }
+  .feedback.show { display: block; }
+  .feedback.ok { background: #eaf3de; border: 1px solid #639922; color: #27500a; }
+  .feedback.ko { background: #fcebeb; border: 1px solid #a32d2d; color: #501313; }
+  .btn { display: inline-block; padding: 9px 20px; border-radius: 8px; border: 1px solid #d3d1c7; background: #ffffff; color: #2c2c2a; font-size: 14px; cursor: pointer; margin-top: 12px; font-family: inherit; }
+  .btn:hover { background: #f6f5f1; }
+  .status { font-size: 13px; color: #5f5e5a; margin-bottom: 12px; }
+  .result-box { text-align: center; padding: 24px; background: #f6f5f1; border-radius: 12px; border: 1px solid #e5e3dc; }
+  .result-box .big { font-size: 24px; font-weight: 600; color: #2c2c2a; margin-bottom: 4px; }
+  .result-box .sub { font-size: 14px; color: #5f5e5a; }
+</style>
+</head>
+<body>
+<div class="hr-wrap">
+  <div class="track" id="track"></div>
+
+  <div id="play-area">
+    <p class="status" id="status">Question 1 / 12 — bonne réponse = ton cheval avance d'une case</p>
+    <span class="theme-tag" id="theme"></span>
+    <p class="question-card" id="question"></p>
+    <div id="options"></div>
+    <div id="feedback" class="feedback"></div>
+    <div id="next-wrap" style="display:none;">
+      <button class="btn" id="next-btn" onclick="next()">Question suivante &rarr;</button>
+    </div>
+  </div>
+
+  <div id="result-area" style="display:none;">
+    <div class="result-box">
+      <div class="big" id="result-title"></div>
+      <div class="sub" id="result-sub"></div>
+    </div>
+    <button class="btn" onclick="restart()">Recommencer la course</button>
+  </div>
+</div>
+
+<script>
+const STEPS = 12;
+const horses = [
+  { name: "Toi", me: true, pos: 0, color: "#534ab7" },
+  { name: "\u00c9clair", me: false, pos: 0, color: "#1d9e75" },
+  { name: "Tornade", me: false, pos: 0, color: "#d85a30" },
+  { name: "Com\u00e8te", me: false, pos: 0, color: "#378add" }
+];
+
+const questions = [
+  { theme: "Tri de CV", q: "Vous mettez de c\u00f4t\u00e9 un CV sans le lire \u00e0 cause d'un pr\u00e9nom \u00e0 consonance \u00e9trang\u00e8re. Vous risquez :",
+    options: ["Rien, si vous ne l'avez pas dit", "Une discrimination fond\u00e9e sur l'origine ou le patronyme", "Une simple faute manag\u00e9riale interne", "Un risque seulement si le candidat porte plainte"], correct: 1,
+    fb: ["L'absence de propos explicite ne prot\u00e8ge pas : c'est la d\u00e9cision et son effet qui comptent.", "Exact. L'origine et le patronyme sont des crit\u00e8res prohib\u00e9s.", "Non, c'est bien une discrimination au sens de la loi, pas une simple faute interne.", "Non, le risque existe d\u00e8s la d\u00e9cision, ind\u00e9pendamment d'une plainte."] },
+  { theme: "Entretien", q: "Une candidate mentionne deux enfants en bas \u00e2ge. Vous l'\u00e9cartez par crainte d'absences. C'est :",
+    options: ["Une pr\u00e9caution l\u00e9gitime", "Une discrimination fond\u00e9e sur la situation de famille", "Acceptable si horaires d\u00e9cal\u00e9s", "Tol\u00e9r\u00e9 si non \u00e9crit"], correct: 1,
+    fb: ["Non, la crainte d'absences fond\u00e9e sur la parentalit\u00e9 n'est pas une pr\u00e9caution l\u00e9gitime.", "Exact. La situation de famille est un crit\u00e8re prohib\u00e9.", "Non, les contraintes du poste ne justifient pas d'\u00e9carter sur ce motif.", "Non, l'absence d'\u00e9crit ne supprime pas le risque."] },
+  { theme: "Formes de discrimination", q: "Exiger le permis B pour un poste s\u00e9dentaire sans d\u00e9placement constitue :",
+    options: ["Une discrimination directe", "Une discrimination indirecte", "Un crit\u00e8re neutre", "Une exigence toujours justifi\u00e9e"], correct: 1,
+    fb: ["Non, le crit\u00e8re n'est pas un motif prohib\u00e9 \u00e9nonc\u00e9 ouvertement.", "Exact. Crit\u00e8re neutre en apparence, effet d'exclusion non justifi\u00e9 : discrimination indirecte.", "Non, son effet d'exclusion le rend probl\u00e9matique.", "Non, elle n'est justifi\u00e9e que si r\u00e9ellement indispensable au poste."] },
+  { theme: "Handicap", q: "Un candidat malentendant est \u00e9cart\u00e9 sans \u00e9tude d'am\u00e9nagements possibles. Vous risquez :",
+    options: ["Rien, libert\u00e9 de choix", "Une discrimination fond\u00e9e sur le handicap", "Un risque seulement sans r\u00e9f\u00e9rent handicap", "Une faute seulement si mentionn\u00e9 au CV"], correct: 1,
+    fb: ["Non, la libert\u00e9 de recruter ne couvre pas un \u00e9cartement fond\u00e9 sur le handicap.", "Exact. \u00c9carter sans analyse objective des am\u00e9nagements est discriminatoire.", "Non, la responsabilit\u00e9 existe avec ou sans r\u00e9f\u00e9rent.", "Non, peu importe que le handicap figure ou non au CV."] },
+  { theme: "Questions interdites", q: "Vous demandez \u00e0 une candidate si elle compte avoir des enfants. Cette question est :",
+    options: ["Acceptable si pos\u00e9e \u00e0 tous", "Discriminatoire, car elle porte sur un crit\u00e8re prot\u00e9g\u00e9", "L\u00e9gale si justifi\u00e9e par le poste", "Tol\u00e9r\u00e9e si r\u00e9ponse libre"], correct: 1,
+    fb: ["Non, la poser \u00e0 tous ne la rend pas neutre.", "Exact. La seule question sur un crit\u00e8re prot\u00e9g\u00e9 suffit \u00e0 caract\u00e9riser le risque.", "Non, aucun poste ne justifie cette question.", "Non, la libert\u00e9 de r\u00e9ponse ne l\u00e9gitime pas la question."] },
+  { theme: "Crit\u00e8res prohib\u00e9s", q: "Vous \u00e9cartez un candidat car il a eu des responsabilit\u00e9s syndicales, par crainte de tensions. C'est :",
+    options: ["Une d\u00e9cision manag\u00e9riale l\u00e9gitime", "Une discrimination fond\u00e9e sur les activit\u00e9s syndicales", "Acceptable si bien document\u00e9e", "Un risque faible"], correct: 1,
+    fb: ["Non, anticiper des tensions est un pr\u00e9suppos\u00e9, pas une \u00e9valuation des comp\u00e9tences.", "Exact. Les activit\u00e9s syndicales sont un crit\u00e8re prohib\u00e9.", "Non, documenter une d\u00e9cision fond\u00e9e sur un motif prohib\u00e9 ne la sauve pas.", "Non, le risque juridique est r\u00e9el."] },
+  { theme: "Recours", q: "Un candidat sans preuve \u00e9crite peut-il saisir le D\u00e9fenseur des droits ?",
+    options: ["Non, sa demande sera class\u00e9e", "Oui, des indices s\u00e9rieux et concordants suffisent", "Oui, mais avec un avocat", "Non, il doit passer par le CSE d'abord"], correct: 1,
+    fb: ["Non, l'absence de preuve \u00e9crite ne bloque pas la saisine.", "Exact. La saisine est gratuite et la charge de la preuve est am\u00e9nag\u00e9e.", "Non, l'avocat n'est pas requis pour saisir le D\u00e9fenseur des droits.", "Non, le passage par le CSE n'est pas un pr\u00e9alable obligatoire."] },
+  { theme: "Responsabilit\u00e9", q: "Votre chef vous demande d'\u00e9carter les candidats \u00ab trop \u00e2g\u00e9s \u00bb. Si vous le faites, qui est responsable ?",
+    options: ["Le chef de service seul", "Vous et le chef conjointement", "L'association (responsabilit\u00e9 du fait d'autrui)", "Personne sans \u00e9crit"], correct: 2,
+    fb: ["Non, l'ordre hi\u00e9rarchique ne concentre pas la responsabilit\u00e9 sur lui seul.", "Non, la responsabilit\u00e9 civile ne se partage pas ainsi entre individus.", "Exact. L'association r\u00e9pond des actes de ses salari\u00e9s dans leurs fonctions.", "Non, l'absence d'\u00e9crit ne supprime pas la responsabilit\u00e9."] },
+  { theme: "Responsabilit\u00e9", q: "Une note interne rappelant l'interdiction de discriminer prot\u00e8ge-t-elle l'association ?",
+    options: ["Oui, obligation d'information remplie", "Oui, si sign\u00e9e par les salari\u00e9s", "Non, rappeler les r\u00e8gles ne suffit pas \u00e0 s'exon\u00e9rer", "Oui, le recruteur est seul responsable"], correct: 2,
+    fb: ["Non, informer ne suffit pas \u00e0 s'exon\u00e9rer.", "Non, la signature ne change rien \u00e0 la responsabilit\u00e9.", "Exact. L'employeur a un devoir de pr\u00e9vention, de formation ET d'encadrement.", "Non, la responsabilit\u00e9 remonte \u00e0 l'association."] },
+  { theme: "Donn\u00e9es du candidat", q: "Parmi ces donn\u00e9es, lesquelles ne devez-vous PAS collecter dans un dossier de candidature ?",
+    options: ["Nom et pr\u00e9nom", "Exp\u00e9rience professionnelle", "Situation familiale et religion", "Dipl\u00f4mes obtenus"], correct: 2,
+    fb: ["Non, le nom et le pr\u00e9nom sont n\u00e9cessaires \u00e0 l'identification.", "Non, l'exp\u00e9rience est au c\u0153ur de l'\u00e9valuation.", "Exact. La situation familiale et la religion sont des crit\u00e8res prohib\u00e9s.", "Non, les dipl\u00f4mes sont li\u00e9s aux comp\u00e9tences requises."] },
+  { theme: "Discrimination indirecte", q: "Exiger une disponibilit\u00e9 \u00e0 temps plein non indispensable au poste peut constituer :",
+    options: ["Une discrimination directe", "Une discrimination indirecte", "Un crit\u00e8re neutre sans risque", "Une exigence toujours justifi\u00e9e"], correct: 1,
+    fb: ["Non, aucun crit\u00e8re prohib\u00e9 n'est nomm\u00e9 ouvertement.", "Exact. Crit\u00e8re neutre, effet d'exclusion (parents isol\u00e9s, handicap), sans justification.", "Non, l'effet d'exclusion cr\u00e9e un risque.", "Non, justifi\u00e9e seulement si r\u00e9ellement n\u00e9cessaire au poste."] },
+  { theme: "Sanctions", q: "Quelles sanctions une association risque-t-elle pour discrimination \u00e0 l'embauche ?",
+    options: ["Une amende administrative seulement", "Des dommages et int\u00e9r\u00eats et jusqu'\u00e0 225 000 \u20ac d'amende", "Un avertissement si premi\u00e8re fois", "Une interdiction de recruter 1 an"], correct: 1,
+    fb: ["Non, les sanctions ne sont pas qu'administratives.", "Exact. Personne morale : jusqu'\u00e0 225 000 \u20ac d'amende, plus dommages et int\u00e9r\u00eats et peines compl\u00e9mentaires.", "Non, pas de tol\u00e9rance \u00ab premi\u00e8re fois \u00bb.", "Non, ce n'est pas la sanction pr\u00e9vue par les textes."] }
+];
+
+let current = 0, correctCount = 0;
+
+function renderTrack() {
+  const t = document.getElementById('track');
+  t.innerHTML = '';
+  horses.forEach(h => {
+    const lane = document.createElement('div');
+    lane.className = 'lane';
+    const pct = (h.pos / STEPS) * 92;
+    lane.innerHTML = '<span class="lane-name ' + (h.me ? 'me' : '') + '">' + h.name + '</span>' +
+      '<div class="lane-track"><div class="finish-line"></div>' +
+      '<span class="horse" style="left:' + pct + '%; color:' + h.color + '">&#128052;</span></div>';
+    t.appendChild(lane);
+  });
+}
+
+function load() {
+  const q = questions[current];
+  document.getElementById('status').textContent = 'Question ' + (current+1) + ' / ' + questions.length + ' \u2014 bonne r\u00e9ponse = ton cheval avance';
+  document.getElementById('theme').textContent = q.theme;
+  document.getElementById('question').textContent = q.q;
+  const opts = document.getElementById('options');
+  opts.innerHTML = '';
+  q.options.forEach((o, i) => {
+    const b = document.createElement('button');
+    b.className = 'opt-btn';
+    b.textContent = o;
+    b.onclick = () => answer(i);
+    opts.appendChild(b);
+  });
+  document.getElementById('feedback').className = 'feedback';
+  document.getElementById('next-wrap').style.display = 'none';
+  document.getElementById('next-btn').innerHTML = current < questions.length - 1 ? 'Question suivante &rarr;' : 'Voir le r\u00e9sultat &rarr;';
+}
+
+function answer(i) {
+  const q = questions[current];
+  const btns = document.querySelectorAll('.opt-btn');
+  btns.forEach(b => b.disabled = true);
+  const correct = i === q.correct;
+  btns[i].classList.add(correct ? 'correct' : 'wrong');
+  if (!correct) btns[q.correct].classList.add('correct');
+  const fb = document.getElementById('feedback');
+  fb.className = 'feedback show ' + (correct ? 'ok' : 'ko');
+  fb.textContent = q.fb[i];
+  if (correct) { horses[0].pos++; correctCount++; }
+  horses.forEach(h => { if (!h.me && Math.random() < 0.55) h.pos++; });
+  renderTrack();
+  document.getElementById('next-wrap').style.display = 'block';
+}
+
+function next() {
+  current++;
+  if (current < questions.length) load();
+  else finish();
+}
+
+function finish() {
+  renderTrack();
+  document.getElementById('play-area').style.display = 'none';
+  document.getElementById('result-area').style.display = 'block';
+  const max = Math.max.apply(null, horses.map(h => h.pos));
+  const won = horses[0].pos === max;
+  const ranked = horses.slice().sort((a,b) => b.pos - a.pos);
+  const myRank = ranked.findIndex(h => h.me) + 1;
+  document.getElementById('result-title').textContent = won ? 'Victoire ! ' + correctCount + '/' + questions.length + ' bonnes r\u00e9ponses' : myRank + 'e place \u2014 ' + correctCount + '/' + questions.length + ' bonnes r\u00e9ponses';
+  document.getElementById('result-sub').textContent = won ? 'Ton cheval franchit la ligne en t\u00eate.' : 'R\u00e9vise les notions manqu\u00e9es et retente ta chance.';
+}
+
+function restart() {
+  current = 0; correctCount = 0;
+  horses.forEach(h => h.pos = 0);
+  document.getElementById('result-area').style.display = 'none';
+  document.getElementById('play-area').style.display = 'block';
+  renderTrack();
+  load();
+}
+
+renderTrack();
+load();
+</script>
+</body>
+</html>
